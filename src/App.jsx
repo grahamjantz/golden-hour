@@ -7,12 +7,30 @@ function App() {
   const [sunriseTime, setSunriseTime] = useState('');
   const [goldenHourMorning, setGoldenHourMorning] = useState('');
   const [goldenHourEvening, setGoldenHourEvening] = useState('');
-  const [nextGoldenHour, setNextGoldenHour] = useState(null); // Initialize as null
+  const [nextGoldenHour, setNextGoldenHour] = useState(null);
   const [countdown, setCountdown] = useState('');
+  const [consent, setConsent] = useState(false); // New state for consent
+
+  const requestLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const { latitude, longitude } = position.coords;
+          setLocation({ latitude, longitude });
+          fetchSunTimes(latitude, longitude);
+          setConsent(true); // Set consent to true when location is fetched
+        },
+        error => console.error('Error fetching location:', error),
+        { enableHighAccuracy: true }
+      );
+    } else {
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
 
   useEffect(() => {
-    // Request location access and get the user's coordinates
-    if (navigator.geolocation) {
+    // Only request location if consent is granted
+    if (consent && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         position => {
           const { latitude, longitude } = position.coords;
@@ -22,10 +40,8 @@ function App() {
         error => console.error('Error fetching location:', error),
         { enableHighAccuracy: true }
       );
-    } else {
-      alert('Geolocation is not supported by your browser.');
     }
-  }, []);
+  }, [consent]);
 
   const fetchSunTimes = async (latitude, longitude) => {
     try {
@@ -37,20 +53,17 @@ function App() {
       const sunrise = new Date(data.results.sunrise);
       const sunset = new Date(data.results.sunset);
 
-      setSunriseTime(sunrise.toLocaleTimeString());
-      setSunsetTime(sunset.toLocaleTimeString());
+      setSunriseTime(sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setSunsetTime(sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
-      // Calculate morning golden hour as one hour after sunrise
       const goldenHourMorningTime = new Date(sunrise);
       goldenHourMorningTime.setMinutes(goldenHourMorningTime.getMinutes() + 60);
-      setGoldenHourMorning(goldenHourMorningTime.toLocaleTimeString());
+      setGoldenHourMorning(goldenHourMorningTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
-      // Calculate evening golden hour as one hour before sunset
       const goldenHourEveningTime = new Date(sunset);
       goldenHourEveningTime.setMinutes(goldenHourEveningTime.getMinutes() - 60);
-      setGoldenHourEvening(goldenHourEveningTime.toLocaleTimeString());
+      setGoldenHourEvening(goldenHourEveningTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
-      // Determine the next golden hour
       const now = new Date();
       let nextGoldenHourTime;
       if (now < goldenHourMorningTime) {
@@ -58,13 +71,10 @@ function App() {
       } else if (now < goldenHourEveningTime) {
         nextGoldenHourTime = goldenHourEveningTime;
       } else {
-        // If both golden hours have passed, set the next day's morning golden hour
         nextGoldenHourTime = new Date(goldenHourMorningTime);
         nextGoldenHourTime.setDate(nextGoldenHourTime.getDate() + 1);
       }
       setNextGoldenHour(nextGoldenHourTime);
-
-      // Start the countdown
       startCountdown(nextGoldenHourTime);
     } catch (error) {
       console.error('Error fetching sun times:', error);
@@ -92,27 +102,41 @@ function App() {
 
   return (
     <div className='App w-screen min-h-screen flex flex-col items-center justify-start'>
-      <header className='w-full flex flex-col items-center justify-center py-4 bg-[#588B8B]'>
-        <div className='w-full flex items-center justify-center gap-4'>
-          <FaRegSun size={30} color='#FFD3B4'/>
-          {/* <h1 className="text-2xl text-[#FFD3B4]">Golden Hour</h1> */}
+      <header className='w-full flex flex-col items-center justify-center py-2 bg-[#588B8B]'>
+        <div className='w-full flex items-center flex-col justify-center '>
+          <img src='src\assets\sun.png' alt="Sun Icon" className='h-8'/>
           <p className='text-2xl '>Local Time: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
       </header>
-      {location ? (
+      {!consent ? (
+        <main className='w-full flex flex-col items-center justify-center mt-10 text-center p-4'>
+          <p className='text-lg mb-4'>To provide you with the best experience, we need access to your location.</p>
+          <button 
+            onClick={requestLocation} 
+            className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'
+          >
+            Grant Location Access
+          </button>
+        </main>
+      ) : location ? (
         <main className='w-full flex flex-col items-center'>
-          <div className='w-10/12 my-4 bg-[#FFFFFFDE] text-[#242424] flex flex-col items-center rounded'>
-            <h2 className="text-2xl mt-4 underline ">Next Golden Hour:</h2>
-            {nextGoldenHour && <p className='text-xl'>{nextGoldenHour.toLocaleTimeString()}</p>}
-            <br></br>
+          <div className='w-10/12 my-4 py-4 bg-[#FFFFFFDE] text-[#242424] flex flex-col items-center rounded'>
+            <h2 className="text-2xl underline ">Next Golden Hour:</h2>
+            {nextGoldenHour && <p className='text-xl'>{nextGoldenHour.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
           </div>
-          <h3 className="text-lg mt-2">Countdown: {countdown}</h3>
-          <br></br>
-          <p>Sunset Time: {sunsetTime}</p>
-          <p>Evening Golden Hour: {goldenHourEvening}</p>
-          <br></br>
-          <p>Sunrise Time: {sunriseTime}</p>
-          <p>Morning Golden Hour: {goldenHourMorning}</p>
+          <div className='w-10/12 my-4 py-4 bg-[#FFFFFFDE] text-[#242424] flex flex-col items-center rounded'>
+            <h3 className="text-lg ">Countdown: {countdown}</h3>
+            <br></br>
+            <hr className='w-10/12  bg-[#242424]'/>
+            <br></br>
+            <p>Sunset: {sunsetTime}</p>
+            <p>Evening Golden Hour: {goldenHourEvening}</p>
+            <br></br>
+            <hr className='w-10/12  bg-[#242424]'/>
+            <br></br>
+            <p>Sunrise: {sunriseTime}</p>
+            <p>Morning Golden Hour: {goldenHourMorning}</p>
+          </div>
         </main>
       ) : (
         <p>Fetching location...</p>
